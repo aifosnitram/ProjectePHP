@@ -1,0 +1,9 @@
+vendor/
+
+# Configuració local
+config.db
+config.db.example
+
+# Sistema
+.DS_Store
+*.log
