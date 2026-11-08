@@ -25,8 +25,6 @@ que PHP vagi per 8.4 i 8.5. Tot el projecte compila i s'executa en aquesta versi
   decideix què ensenya. El cas 1451 (client amb comandes o enviaments) es tracta a part perquè és
   habitual i no ha de trencar la pàgina.
 
-`README.antic.md` és la versió llarga anterior, amb els passos de posada en marxa i les notes per a
-Laragon.
 
 ## Estructura
 
