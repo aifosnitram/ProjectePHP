@@ -1,0 +1,107 @@
+<?php
+    /* Formulari de modificació d'un client */
+
+    use models\Customer;
+
+    require_once dirname(__DIR__, 3) . '/src/config/config.php';
+    require_once BASE_PATH . '/vendor/autoload.php';
+  
+
+    $pageTitle = 'Modificar client';
+    $customer  = null;
+    $errors    = [];
+
+    // L'id viatja per GET quan s'obre la pàgina i per POST quan s'envia el
+    // formulari. filter_input retorna null si no hi és i false si no és enter.
+    $rawId = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST'
+        ? filter_input(INPUT_POST, 'customer_id', FILTER_VALIDATE_INT)
+        : filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+
+    if ($rawId === false || $rawId === null || $rawId <= 0) {
+        http_response_code(400);
+        $errors['_general'] = 'No s\'ha proporcionat cap ID de client vàlid.';
+    } else {
+        try {
+            $customer = Customer::find($rawId);
+
+            if ($customer === null) {
+                http_response_code(404);
+                $errors['_general'] = 'El client no existeix.';
+            }
+        } catch (\Throwable $e) {
+            error_log($e->getMessage());
+            http_response_code(500);
+            $errors['_general'] = 'No s\'ha pogut carregar el client.';
+        }
+    }
+
+    if ($customer !== null && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+
+        // Mateix mètode que a la creació, però amb l'id fix: save() veu un id
+        // i fa l'INSERT ... ON DUPLICATE KEY UPDATE en lloc d'un INSERT net.
+        $customer = customerFromPost((int) $rawId, $errors);
+
+        if ($errors === []) {
+            try {
+                Customer::save($customer);
+                header('Location: ' . BASE_URL . '/src/html/Customers/Customers_list.php?status=updated');
+                exit;
+
+            } catch (\DomainException $e) {
+                // El model ha detectat un duplicat abans de tocar la taula.
+                $errors['email_address'] = $e->getMessage();
+            } catch (\mysqli_sql_exception $e) {
+                error_log($e->getMessage());
+                // 1062 = l'email nou xoca amb el d'un altre client (UNIQUE).
+                if ((int) $e->getCode() === 1062) {
+                    $errors['email_address'] = 'Ja existeix un altre client amb aquest email.';
+                } else {
+                    $errors['_general'] = 'No s\'ha pogut desar el client. Torna-ho a provar.';
+                }
+            } catch (\Throwable $e) {
+                error_log($e->getMessage());
+                $errors['_general'] = 'No s\'ha pogut desar el client. Torna-ho a provar.';
+            }
+        }
+    }
+
+    // Si el POST ha fallat, $customer és l'objecte amb el que s'ha escrit;
+    // si és un GET, és el de la base de dades. customerValue() tria el valor.
+    if ($customer === null) {
+        $customer = new Customer();   // només perquè la plantilla tingui objecte
+    }
+
+    require_once BASE_PATH . '/src/html/includes/head.php';
+    require_once BASE_PATH . '/src/html/includes/header.php';
+?>
+<div id="content">
+    <?php require_once BASE_PATH . '/src/html/includes/nav.php'; ?>
+
+    <main id="section">
+        <h3>Modificar client</h3>
+
+        <?php if (isset($errors['_general'])): ?>
+            <div class="alert alert-danger"><?= customerEscape($errors['_general']) ?></div>
+        <?php endif; ?>
+
+        <?php if (isset($customer->customer_id)): ?>
+            <form method="post" action="<?= BASE_URL ?>/src/html/Customers/Customer_update.php" class="w-75">
+
+                <?php /* L'id viatja amagat: no s'edita, però cal per saber quina fila es toca. */ ?>
+                <input type="hidden" name="customer_id" value="<?= (int) $customer->customer_id ?>">
+
+                <div class="form-group">
+                    <label for="customer_id_display">ID</label>
+                    <input type="text" class="form-control" id="customer_id_display" value="<?= (int) $customer->customer_id ?>" disabled>
+                    <small class="form-text text-muted">L'identificador no es pot canviar.</small>
+                </div>
+
+                <?php require __DIR__ . '/_customer_form_fields.php'; ?>
+
+                <button type="submit" class="btn btn-primary">Desar canvis</button>
+                <a href="<?= BASE_URL ?>/src/html/Customers/Customer_read.php?id=<?= (int) $customer->customer_id ?>" class="btn btn-link">Cancel·lar</a>
+            </form>
+        <?php endif; ?>
+    </main>
+</div>
+<?php require_once BASE_PATH . '/src/html/includes/footer.php'; ?>
